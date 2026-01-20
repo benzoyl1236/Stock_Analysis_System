@@ -1,0 +1,27 @@
+# Analysis Parameters
+analysis:
+  # Financial ratios to calculate
+  ratios:
+    - "current_ratio"
+    - "debt_to_equity"
+    - "return_on_equity"
+    - "price_to_earnings"
+    - "price_to_sales"
+    - "ev_to_ebitda"
+  
+  # Valuation assumptions
+  valuation:
+    default_growth_rate: 0.05
+    terminal_growth_rate: 0.025
+    market_risk_premium: 0.055
+    risk_free_rate: 0.04
+  
+  # Technical analysis
+  technical:
+    sma_periods: [20, 50, 200]
+    rsi_period: 14
+  
+  # Portfolio optimization
+  portfolio:
+    max_position_size: 0.10  # 10% max per stock
+    min_position_size: 0.01  # 1% min

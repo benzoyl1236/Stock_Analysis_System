@@ -1,0 +1,12 @@
+# FREE API KEYS ONLY
+apis:
+  alpha_vantage: "GFU8OMO8ZMKL5A15"  # Replace with your free key
+  fred: "29754f72c95fb0c2aa12ab252b0bd330 "  # Optional: get from https://fred.stlouisfed.org
+  newsapi: "a874dfe2d52441fd9ff5cae71f70ad72"  # Optional: get from https://newsapi.org
+  
+  # SEC EDGAR (no key needed, just user agent)
+  sec_edgar_user_agent: "Your Name your.email@gmail.com"
+
+rate_limits:
+  alpha_vantage: 5  # calls per minute (free limit)
+  yahoo_finance: 2000
