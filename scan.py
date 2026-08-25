@@ -36,8 +36,49 @@ UNIVERSE = HERE / "universe.csv"
 OUT_DIR = HERE / "output"
 BASERATE_FILE = HERE / "baserates.json"
 
+MARKET = "sgx"
+
+
+def activate_market(market: str) -> None:
+    """Point the runner at a market profile.
+
+    The SGX and US profiles share identical signal gates and identical
+    indicator settings; they differ only in the two tradability floors (see
+    params_us.py). Each carries its own fingerprint, its own universe file, its
+    own cache and its own base rates, so results from one market can never be
+    silently mixed into the other.
+    """
+    global UNIVERSE, BASERATE_FILE, FINGERPRINT, MARKET, describe
+    MARKET = market
+    if market == "us":
+        import params_us as P
+        # rules.py reads its thresholds from module-level G / I. Swap them for
+        # the US profile. Indicators are byte-identical between profiles, so
+        # only the gate thresholds actually change.
+        rules.G = P.GATES
+        rules.I = P.INDICATORS
+        bt.G = P.GATES
+        UNIVERSE = HERE / "universe_us.csv"
+        BASERATE_FILE = HERE / "baserates_us.json"
+        FINGERPRINT = P.FINGERPRINT
+        describe = P.describe
+    elif market != "sgx":
+        raise SystemExit(f"Unknown market '{market}'. Use sgx or us.")
+
 
 # --------------------------------------------------------------------------
+
+def _load(tickers, use_cache: bool = True):
+    """Bulk loader for the US universe, per-ticker loader for SGX.
+
+    Below ~300 names the simple loader is fine and gives clearer per-ticker
+    errors. Above that, batching is the only way to avoid Yahoo throttling.
+    """
+    if MARKET == "us" or len(tickers) > 300:
+        import data_us
+        return data_us.load_bulk(tickers, use_cache=use_cache)
+    return data.load_universe(tickers, use_cache=use_cache)
+
 
 def _names() -> dict[str, str]:
     try:
@@ -92,8 +133,8 @@ def run_scan(notify: bool = False, use_cache: bool = True) -> dict:
     tickers = data.read_universe_file(UNIVERSE)
     summary = _load_baserates()
 
-    print(f"Scanning {len(tickers)} counters  [rules {FINGERPRINT}]")
-    universe = data.load_universe(tickers, use_cache=use_cache)
+    print(f"Scanning {len(tickers):,} tickers  [{MARKET.upper()} rules {FINGERPRINT}]")
+    universe = _load(tickers, use_cache=use_cache)
 
     hits, near, all_items = [], [], []
     for t, raw in universe.items():
@@ -145,8 +186,8 @@ def check_one(ticker: str) -> dict | None:
 def run_backtest() -> dict:
     """Rebuild base rates across the universe. Slow — run it weekly, not daily."""
     tickers = data.read_universe_file(UNIVERSE)
-    print(f"Backtesting {len(tickers)} counters  [rules {FINGERPRINT}]")
-    universe = data.load_universe(tickers)
+    print(f"Backtesting {len(tickers):,} tickers  [{MARKET.upper()} rules {FINGERPRINT}]")
+    universe = _load(tickers)
     trades = bt.run(universe)
     summary = bt.summarise(trades)
 
@@ -180,6 +221,8 @@ def verify_universe() -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="SGX screener, locked rule set.")
+    ap.add_argument("--market", default="sgx", choices=["sgx", "us"],
+                    help="market profile (default sgx)")
     ap.add_argument("--notify", action="store_true", help="push alerts to Telegram")
     ap.add_argument("--backtest", action="store_true", help="rebuild base rates")
     ap.add_argument("--check", metavar="TICKER", help="evaluate one counter")
@@ -187,6 +230,7 @@ def main() -> None:
     ap.add_argument("--rules", action="store_true", help="print locked parameters")
     ap.add_argument("--no-cache", action="store_true", help="force refetch")
     a = ap.parse_args()
+    activate_market(a.market)
 
     if a.rules:
         print(describe()); return

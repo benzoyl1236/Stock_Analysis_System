@@ -31,7 +31,14 @@ import pandas as pd
 
 import indicators as ind
 import rules
-from params import BACKTEST as B, FINGERPRINT
+
+
+def _fp() -> str:
+    """Active fingerprint. scan.activate_market() may swap the profile."""
+    import scan
+    return getattr(scan, "FINGERPRINT", FINGERPRINT)
+
+from params import BACKTEST as B, FINGERPRINT  # noqa: F401 (rebound by scan.activate_market)
 
 
 @dataclass
@@ -78,18 +85,33 @@ def _forward(df: pd.DataFrame, sig_i: int) -> Trade | None:
 
 
 def run_one(ticker: str, raw: pd.DataFrame) -> list[Trade]:
-    """Find every historical signal in one name and measure what followed."""
+    """Find every historical signal in one name and measure what followed.
+
+    Gate evaluation is vectorized (fast_rules), which is ~500x faster than the
+    bar-by-bar loop and is asserted identical to it by test_fast_rules.py. The
+    cooldown is still applied sequentially, because whether a bar is eligible
+    depends on which earlier bars already fired.
+    """
     df = ind.build(raw)
     trades: list[Trade] = []
     last_signal = -10 ** 9
 
+    try:
+        import fast_rules
+        fired_col = fast_rules.evaluate_all(df, rules.I, rules.G)["FIRED"].to_numpy()
+    except Exception:
+        fired_col = None
+
     for i in range(150, len(df) - 1):
         if i - last_signal < B.cooldown_bars:
             continue
-        try:
-            _, fired = rules.evaluate(df, i)
-        except Exception:
-            continue
+        if fired_col is not None:
+            fired = bool(fired_col[i])
+        else:
+            try:
+                _, fired = rules.evaluate(df, i)
+            except Exception:
+                continue
         if not fired:
             continue
         t = _forward(df, i)
@@ -115,11 +137,11 @@ def run(universe: dict[str, pd.DataFrame]) -> pd.DataFrame:
 def summarise(trades: pd.DataFrame) -> dict:
     """Aggregate base rates. This is what gets shown instead of a forecast."""
     if trades.empty:
-        return {"fingerprint": FINGERPRINT, "n": 0,
+        return {"fingerprint": _fp(), "n": 0,
                 "note": "No historical signals found. Nothing to base an estimate on."}
 
     out: dict = {
-        "fingerprint": FINGERPRINT,
+        "fingerprint": _fp(),
         "n": int(len(trades)),
         "names": int(trades["ticker"].nunique()),
         "first": trades["signal_date"].min(),

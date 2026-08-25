@@ -20,7 +20,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from params import FINGERPRINT, describe
+from params import FINGERPRINT as _DEFAULT_FP, describe as _default_describe
+
+
+def _active():
+    import scan
+    return (getattr(scan, "FINGERPRINT", _DEFAULT_FP),
+            getattr(scan, "describe", _default_describe))
 from rules import GATE_NAMES
 
 # --- tokens ---------------------------------------------------------------
@@ -231,6 +237,9 @@ not a strategy.</div>"""
 def render(hits: list[dict], near: list[dict], summary: dict,
            scanned: int, out_path: str | Path) -> Path:
     now = datetime.now()
+    FINGERPRINT, _desc = _active()
+    import scan as _scan
+    MARKET_LABEL = getattr(_scan, "MARKET", "sgx").upper()
     hits_html = "".join(_card(h) for h in hits) or (
         '<div class="empty"><b>No qualifying setups</b>'
         'Every name failed at least one gate. This is the normal outcome on most days.</div>')
@@ -239,7 +248,7 @@ def render(hits: list[dict], near: list[dict], summary: dict,
     doc = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SGX Signal Sheet — {now:%d %b %Y}</title>
+<title>{MARKET_LABEL} Signal Sheet — {now:%d %b %Y}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -250,7 +259,7 @@ def render(hits: list[dict], near: list[dict], summary: dict,
   <div class="sub">SGX daily &middot; locked rule set</div></div>
   <div class="stamp"><b>{now:%a %d %b %Y}</b>{now:%H:%M} SGT &middot; {scanned} counters scanned</div>
 </header>
-<div class="fp">RULE FINGERPRINT {FINGERPRINT} &middot; any change to params.py voids the base rates below</div>
+<div class="fp">RULE FINGERPRINT {FINGERPRINT} &middot; {MARKET_LABEL} profile &middot; any change to the locked params voids the base rates below</div>
 
 <div class="counts">
   <div class="hit"><div class="n">{len(hits)}</div><div class="l">Alerts</div></div>

@@ -1,4 +1,31 @@
-# SGX Screener — locked rule set
+# Stock Screener — locked rule set, SGX + US
+
+## START HERE
+
+```bash
+pip install -r requirements.txt
+
+# 1. SGX — 66 counters, a few minutes
+python scan.py --backtest          # THE GO/NO-GO. Read the output.
+python scan.py                     # daily scan, writes output/signals.html
+
+# 2. US — ~5,800 tickers, 20-40 min on first run
+python universe_us.py              # fetch the real ticker list
+python scan.py --market us --backtest
+python scan.py --market us
+```
+
+Run SGX after 5:05pm SGT. Run US after 5:30am SGT (4pm ET, next morning your
+time). Every indicator is Close-based, so intraday readings are provisional and
+gates can flip before the bell.
+
+**Do not trade a signal until you have read a backtest.** The pipeline is
+tested; the edge is not. If the 20-day win rate comes back near 50% with a
+median near zero, the signal does not work on that market and the correct
+response is to stop — not to edit params.
+
+---
+
 
 Scans SGX counters for the eight-gate setup built from your POEMS Technical View
 template, writes an HTML signal sheet, and pushes alerts to Telegram.
@@ -142,3 +169,51 @@ Backtests exclude commission, spread and slippage — on SGX small caps the spre
 alone can be a meaningful fraction of a 20-day move.
 
 This is a personal research tool, not financial advice.
+
+---
+
+## US market
+
+Same eight gates, same indicator settings, separate profile in `params_us.py`
+with its own fingerprint (`93bab20c088f` vs SGX `6acfe71eb6f4`).
+
+Only two constants differ, and neither is part of the signal:
+
+| | SGX | US |
+|---|---|---|
+| min average turnover | S$300,000/day | US$20,000,000/day |
+| min price | S$0.05 | US$5.00 |
+
+These are tradability floors. S$300k/day is a real liquidity bar on SGX and no
+bar at all on US markets. Changing a floor when moving to a market with 100x the
+turnover is calibration; lowering it to let one specific stock through is
+curve-fitting. Same edit, different intent — know which one you are doing.
+
+`universe_us.py` pulls the live Nasdaq Trader symbol directory rather than a
+hand-typed list. Test issues, warrants, units and preferreds are filtered out.
+ETFs excluded by default; add `--include-etfs` to keep them.
+
+**Expect roughly 15-20 alerts a day** once ~2,000 US names clear the liquidity
+gate. That is a firehose, not an alert system. Decide how to triage it after you
+see the real number — ranked top-N, tighter confirm_window, or sector caps.
+
+### Performance
+
+`fast_rules.py` evaluates the gates as column operations instead of bar by bar:
+494x faster, which turns a 2.6-hour full-market backtest into about 20 seconds.
+It is tested for cell-for-cell agreement with `rules.py` across 21,564 bars in
+four market regimes, zero mismatches. If the two ever disagree, `rules.py` is
+the authority.
+
+`data_us.py` batches 150 tickers per request, checkpoints after each batch so an
+interrupted run resumes, and writes one consolidated parquet rather than 6,000
+small files.
+
+### Tests
+
+```bash
+python test_indicators.py    # indicator math vs hand-computed values
+python test_rules.py         # gate behaviour across scenarios
+python test_fast_rules.py    # vectorized == loop, every bar
+python test_e2e.py           # full pipeline, synthetic universe
+```
