@@ -1,0 +1,70 @@
+# SGX scan universe. Yahoo Finance tickers, .SI suffix.
+#
+# VERIFY BEFORE TRUSTING: these were written from memory, not fetched from SGX.
+# Run  python scan.py --verify-universe  to check every line actually returns
+# data, then delete the ones that fail. To scan the whole exchange instead,
+# download the counter list from sgx.com, append .SI to each code, and paste
+# them in here — the liquidity gate will discard the untradeable ones anyway.
+#
+# The three names already in the POEMS chart tabs are at the top.
+ticker,name
+MZH.SI,Nanofilm Technologies
+AWX.SI,AEM Holdings
+G13.SI,Genting Singapore
+D05.SI,DBS Group
+O39.SI,OCBC
+U11.SI,UOB
+Z74.SI,Singtel
+S68.SI,Singapore Exchange
+C6L.SI,Singapore Airlines
+BN4.SI,Keppel
+S63.SI,ST Engineering
+F34.SI,Wilmar International
+C07.SI,Jardine Cycle & Carriage
+J36.SI,Jardine Matheson
+H78.SI,Hongkong Land
+Y92.SI,Thai Beverage
+V03.SI,Venture Corporation
+U96.SI,Sembcorp Industries
+5E2.SI,Seatrium
+S58.SI,SATS
+C09.SI,City Developments
+U14.SI,UOL Group
+TQ5.SI,Frasers Property
+BS6.SI,Yangzijiang Shipbuilding
+558.SI,UMS Integration
+OV8.SI,Sheng Siong
+BSL.SI,Raffles Medical
+A17U.SI,CapitaLand Ascendas REIT
+C38U.SI,CapitaLand Integrated Commercial Trust
+M44U.SI,Mapletree Logistics Trust
+ME8U.SI,Mapletree Industrial Trust
+N2IU.SI,Mapletree Pan Asia Commercial Trust
+BUOU.SI,Frasers Logistics & Commercial Trust
+J69U.SI,Frasers Centrepoint Trust
+K71U.SI,Keppel REIT
+AJBU.SI,Keppel DC REIT
+C2PU.SI,Parkway Life REIT
+T82U.SI,Suntec REIT
+9CI.SI,CapitaLand Investment
+EMI.SI,Emperador
+S59.SI,SIA Engineering
+CJLU.SI,NetLink NBN Trust
+NS8U.SI,Hutchison Port Holdings Trust
+A7RU.SI,Keppel Infrastructure Trust
+Q0F.SI,IHH Healthcare
+S51.SI,Sembcorp Marine
+BTOU.SI,Manulife US REIT
+D01.SI,DFI Retail Group
+P34.SI,Delfi
+AIY.SI,iFAST Corporation
+1D0.SI,Kimly
+5CP.SI,Silverlake Axis
+BDA.SI,PSC Corporation
+40T.SI,ISDN Holdings
+5G3.SI,Sunpower Group
+Y03.SI,Yeo Hiap Seng
+BVA.SI,Top Glove
+H02.SI,Haw Par
+F17.SI,Guocoland
+E5H.SI,Golden Agri-Resources
