@@ -1,0 +1,133 @@
+//@version=5
+// =============================================================================
+// Eight-Gate Signal — TradingView companion to scan.py
+//
+// Replicates the LOCKED ruleset (US fingerprint 93bab20c088f) so you can see
+// on a chart what the scanner sees. Every number below is transcribed from
+// params.py / params_us.py — do not edit them to fit a trade.
+//
+//   EMA 8 / 21 / 100 (Close)      Bollinger 20, 2 SD (SMA)
+//   Stochastic 9 / 3 / 3          buy zone 30, sell zone 70
+//   MACD 9 / 18 / 9               Momentum 28
+//
+// HONEST NOTE, KEPT IN THE CODE ON PURPOSE:
+// Backtesting this ruleset across 5,205 US stocks over 6 years found no
+// tradeable edge. Median 20-day return +0.48%; ranking signals by momentum
+// landed inside the random range; the pre-registered 2010-2019 holdout failed
+// at IC -0.004. This script is for SEEING the gates, not for trusting them.
+// =============================================================================
+
+indicator("Eight-Gate Signal", overlay = true, max_labels_count = 200)
+
+// ---- Inputs: liquidity floors differ between markets, signal gates do not --
+mkt        = input.string("US", "Market", options = ["US", "SGX"])
+minTurn    = mkt == "US" ? 20000000.0 : 300000.0
+minPrice   = mkt == "US" ? 5.0 : 0.05
+showTable  = input.bool(true, "Show gate panel")
+showBands  = input.bool(true, "Show EMAs and Bollinger")
+
+// ---- Indicators (locked settings) -----------------------------------------
+ema8   = ta.ema(close, 8)
+ema21  = ta.ema(close, 21)
+ema100 = ta.ema(close, 100)
+
+bbMid   = ta.sma(close, 20)
+bbDev   = 2.0 * ta.stdev(close, 20)
+bbUpper = bbMid + bbDev
+bbLower = bbMid - bbDev
+bbRange = bbUpper - bbLower
+bbPos   = bbRange > 0 ? (close - bbLower) / bbRange : 0.5
+
+rawK = ta.stoch(close, high, low, 9)      // raw %K
+k    = ta.sma(rawK, 3)                    // "Moving Average: 3" in your dialog
+d    = ta.sma(k, 3)                       // %D
+
+macdLine   = ta.ema(close, 9) - ta.ema(close, 18)
+signalLine = ta.ema(macdLine, 9)
+histLine   = macdLine - signalLine
+
+mtm = close - close[28]
+
+volAvg   = ta.sma(volume, 20)
+relVol   = volAvg > 0 ? volume / volAvg : 0.0
+turnAvg  = ta.sma(close * volume, 20)
+
+// ---- The eight gates ------------------------------------------------------
+// 1. REGIME — uptrend structure
+g1 = close > ema100 and ema8 > ema21 and ema21 > ema100
+
+// 2. PULLBACK — price came back to EMA21, or stochastic dipped into buy zone,
+//    within the last 10 bars
+touched = low <= ema21 * 1.01 or k <= 30
+g2 = nz(ta.barssince(touched), 999) <= 10
+
+// 3. TRIGGER — %K crossed %D from below 60, within the last 5 bars
+crossUp = ta.crossover(k, d) and k < 60
+trigAge = nz(ta.barssince(crossUp), 999)
+g3 = trigAge <= 4
+
+// 4. MACD — above zero and expanding
+g4 = macdLine > 0 and histLine > 0 and histLine > histLine[1]
+
+// 5. MOMENTUM — higher than 28 bars ago
+g5 = mtm > 0
+
+// 6. VOLUME — peak relative volume from the trigger bar to now
+peakRV = 0.0
+for i = 0 to 4
+    if i <= trigAge
+        peakRV := math.max(peakRV, nz(relVol[i]))
+g6 = peakRV >= 1.20
+
+// 7. LIQUIDITY — tradable size and price
+g7 = turnAvg >= minTurn and close >= minPrice
+
+// 8. HEADROOM — not already riding the top of the channel
+g8 = bbPos <= 0.90
+
+score = (g1?1:0)+(g2?1:0)+(g3?1:0)+(g4?1:0)+(g5?1:0)+(g6?1:0)+(g7?1:0)+(g8?1:0)
+fired = g1 and g2 and g3 and g4 and g5 and g6 and g7 and g8
+
+// ---- Plots ----------------------------------------------------------------
+plot(showBands ? ema8   : na, "EMA 8",   color.new(color.orange, 0), 1)
+plot(showBands ? ema21  : na, "EMA 21",  color.new(color.blue,   0), 1)
+plot(showBands ? ema100 : na, "EMA 100", color.new(color.gray,   0), 2)
+pU = plot(showBands ? bbUpper : na, "BB Upper", color.new(color.teal, 60))
+pL = plot(showBands ? bbLower : na, "BB Lower", color.new(color.teal, 60))
+fill(pU, pL, color.new(color.teal, 94))
+plot(showBands ? bbMid : na, "BB Mid", color.new(color.teal, 30), 1)
+
+plotshape(fired, "All 8 gates", shape.triangleup, location.belowbar,
+          color.new(color.green, 0), size = size.small, text = "8/8")
+plotshape(score == 7 and not fired, "7 of 8", shape.circle, location.belowbar,
+          color.new(color.gray, 40), size = size.tiny)
+
+bgcolor(fired ? color.new(color.green, 88) : na)
+
+// ---- Gate panel -----------------------------------------------------------
+mark(bool ok) => ok ? "PASS" : "fail"
+col(bool ok)  => ok ? color.new(color.green, 20) : color.new(color.red, 40)
+
+if showTable and barstate.islast
+    var table t = table.new(position.top_right, 2, 10, border_width = 1)
+    table.cell(t, 0, 0, "GATE",  bgcolor = color.new(color.gray, 20),
+               text_color = color.white, text_size = size.small)
+    table.cell(t, 1, 0, str.tostring(score) + "/8",
+               bgcolor = fired ? color.new(color.green, 10) : color.new(color.gray, 20),
+               text_color = color.white, text_size = size.small)
+    names  = array.from("REGIME","PULLBACK","TRIGGER","MACD","MOMENTUM",
+                        "VOLUME","LIQUIDITY","HEADROOM")
+    states = array.from(g1, g2, g3, g4, g5, g6, g7, g8)
+    for i = 0 to 7
+        table.cell(t, 0, i + 1, array.get(names, i), text_size = size.tiny,
+                   text_color = color.white, bgcolor = color.new(color.gray, 60))
+        table.cell(t, 1, i + 1, mark(array.get(states, i)), text_size = size.tiny,
+                   text_color = color.white, bgcolor = col(array.get(states, i)))
+    table.cell(t, 0, 9, "rules", text_size = size.tiny,
+               text_color = color.gray, bgcolor = color.new(color.gray, 80))
+    table.cell(t, 1, 9, mkt == "US" ? "93bab20c" : "6acfe71e", text_size = size.tiny,
+               text_color = color.gray, bgcolor = color.new(color.gray, 80))
+
+// ---- Alerts ---------------------------------------------------------------
+alertcondition(fired, "All 8 gates passed",
+               "{{ticker}} cleared all eight gates at {{close}}")

@@ -1,0 +1,97 @@
+//@version=5
+// =============================================================================
+// POEMS Oscillators — script 2 of 2. Add this SECOND; it goes in its own pane.
+//
+//   OSC   (top)     Stochastic K 9, D 3, MA 3, zones 70 / 30
+//   MACD  (middle)  short 9, long 18, signal 9, field Close
+//   MTM   (bottom)  period 28
+//
+// If it lands on the price chart, right-click the indicator name and choose
+// Move to -> New pane below.
+//
+// ABOUT THE SCALING — so you know what you are reading.
+// Stochastic is naturally 0-100 and is drawn unchanged, shifted into the top
+// band. MACD and Momentum are in price units and would be a flat line beside
+// it, so each is divided by its own recent peak and drawn as a proportion of
+// its band. Shape, crossings and zero-line behaviour are exact. The y-axis
+// numbers are NOT real values — hover a bar and read the data window on the
+// left for true figures like MACD 0.0612 or MTM 0.3.
+// =============================================================================
+
+indicator("POEMS Oscillators", overlay = false)
+
+lookback = input.int(200, "Bars used to scale MACD/MTM", minval = 50)
+
+rawK = ta.stoch(close, high, low, 9)
+k = ta.sma(rawK, 3)
+d = ta.sma(k, 3)
+
+macdLine = ta.ema(close, 9) - ta.ema(close, 18)
+signalLine = ta.ema(macdLine, 9)
+histLine = macdLine - signalLine
+
+mtm = close - close[28]
+
+// --- band placement: OSC 200-300, MACD 100-200, MTM 0-100 ---
+macdAbs = ta.highest(math.abs(macdLine), lookback)
+sigAbs = ta.highest(math.abs(signalLine), lookback)
+macdPeak = math.max(macdAbs, sigAbs)
+mtmPeak = ta.highest(math.abs(mtm), lookback)
+
+macdB = macdPeak > 0 ? 150 + (macdLine / macdPeak) * 42 : 150
+sigB = macdPeak > 0 ? 150 + (signalLine / macdPeak) * 42 : 150
+histB = macdPeak > 0 ? 150 + (histLine / macdPeak) * 42 : 150
+mtmB = mtmPeak > 0 ? 50 + (mtm / mtmPeak) * 42 : 50
+
+histCol = histLine >= 0 ? color.new(#00CC00, 25) : color.new(#CC0000, 25)
+
+// --- OSC band ---
+plot(k + 200, "%K", color.new(#B8860B, 0), 1)
+plot(d + 200, "%D", color.new(#1E90FF, 0), 1)
+plot(270, "Sell 70", color.new(color.gray, 55), 1)
+plot(230, "Buy 30", color.new(color.gray, 55), 1)
+
+// --- MACD band ---
+plot(histB, "Diff", histCol, 1, style = plot.style_columns, histbase = 150)
+plot(macdB, "MACD", color.new(#1E90FF, 0), 1)
+plot(sigB, "Signal", color.new(#006400, 0), 1)
+plot(150, "MACD zero", color.new(color.gray, 70), 1)
+
+// --- MTM band ---
+plot(mtmB, "MTM 28", color.new(#B8860B, 0), 1)
+plot(50, "MTM zero", color.new(color.gray, 70), 1)
+
+// --- separators ---
+plot(200, "", color.new(color.gray, 25), 1)
+plot(100, "", color.new(color.gray, 25), 1)
+
+// =============================================================================
+// Values box — TRUE numbers, not the scaled y-axis positions.
+// Mirrors the readout in your POEMS chart header.
+// =============================================================================
+showBox = input.bool(true, "Show values box")
+boxPos = input.string("Top right", "Box position", options = ["Top right", "Top left", "Bottom right", "Bottom left"])
+
+pos = boxPos == "Top right" ? position.top_right : boxPos == "Top left" ? position.top_left : boxPos == "Bottom right" ? position.bottom_right : position.bottom_left
+
+var table vals = table.new(pos, 2, 7, border_width = 1)
+
+hdrBg = color.new(color.gray, 15)
+rowBg = color.new(color.gray, 65)
+txt = color.white
+
+if showBox and barstate.islast
+    table.cell(vals, 0, 0, "OSC", text_size = size.tiny, text_color = color.new(#B8860B, 0), bgcolor = hdrBg)
+    table.cell(vals, 1, 0, "K9 D3 MA3", text_size = size.tiny, text_color = color.new(color.gray, 20), bgcolor = hdrBg)
+    table.cell(vals, 0, 1, "%K", text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 1, 1, str.tostring(k, "#.###"), text_size = size.tiny, text_color = k >= 70 ? color.new(#FF6B6B, 0) : k <= 30 ? color.new(#4ADE80, 0) : txt, bgcolor = rowBg)
+    table.cell(vals, 0, 2, "%D", text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 1, 2, str.tostring(d, "#.###"), text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 0, 3, "MACD", text_size = size.tiny, text_color = color.new(#1E90FF, 0), bgcolor = hdrBg)
+    table.cell(vals, 1, 3, str.tostring(macdLine, "#.####"), text_size = size.tiny, text_color = macdLine >= 0 ? color.new(#4ADE80, 0) : color.new(#FF6B6B, 0), bgcolor = hdrBg)
+    table.cell(vals, 0, 4, "Signal", text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 1, 4, str.tostring(signalLine, "#.####"), text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 0, 5, "Diff", text_size = size.tiny, text_color = txt, bgcolor = rowBg)
+    table.cell(vals, 1, 5, str.tostring(histLine, "#.####"), text_size = size.tiny, text_color = histLine >= 0 ? color.new(#4ADE80, 0) : color.new(#FF6B6B, 0), bgcolor = rowBg)
+    table.cell(vals, 0, 6, "MTM 28", text_size = size.tiny, text_color = color.new(#B8860B, 0), bgcolor = hdrBg)
+    table.cell(vals, 1, 6, str.tostring(mtm, "#.###"), text_size = size.tiny, text_color = mtm >= 0 ? color.new(#4ADE80, 0) : color.new(#FF6B6B, 0), bgcolor = hdrBg)

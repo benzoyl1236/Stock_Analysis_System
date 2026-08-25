@@ -1,0 +1,30 @@
+//@version=5
+// =============================================================================
+// POEMS Price — script 1 of 2. Add this one FIRST; it sits on the price chart.
+//
+//   EMA        8 / 21 / 100, field Close
+//   Bollinger  SMA, period 20, 2 standard deviations, field Close
+//
+// Transcribed from your POEMS property dialogs. Colours match too:
+// EMA1 brown, EMA2 blue, EMA3 gold, bands navy, midline turquoise.
+// =============================================================================
+
+indicator("POEMS Price", overlay = true)
+
+ema1 = ta.ema(close, 8)
+ema2 = ta.ema(close, 21)
+ema3 = ta.ema(close, 100)
+
+basis = ta.sma(close, 20)
+dev = 2.0 * ta.stdev(close, 20)
+upper = basis + dev
+lower = basis - dev
+
+plot(ema1, "EMA 8", color.new(#B8860B, 0), 1)
+plot(ema2, "EMA 21", color.new(#1E90FF, 0), 1)
+plot(ema3, "EMA 100", color.new(#DAA520, 0), 1)
+
+pu = plot(upper, "BB Upper", color.new(#000080, 0), 1)
+pl = plot(lower, "BB Lower", color.new(#000080, 0), 1)
+fill(pu, pl, color.new(#4169E1, 93))
+plot(basis, "BB Mid", color.new(#40E0D0, 0), 1)

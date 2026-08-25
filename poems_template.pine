@@ -1,0 +1,81 @@
+//@version=5
+// =============================================================================
+// POEMS Template — all five indicators in ONE script
+//
+// Fits the free plan's indicator limit by using force_overlay: the EMAs and
+// Bollinger bands are pushed onto the price chart while the script itself
+// occupies a lower pane for the oscillator.
+//
+// Settings transcribed from your POEMS property dialogs:
+//   EMA        8 / 21 / 100, field Close
+//   Bollinger  SMA, period 20, 2 standard deviations, field Close
+//   Stochastic K 9, D 3, MA 3, sell zone 70, buy zone 30
+//   MACD       short 9, long 18, signal 9, field Close
+//   Momentum   period 28
+//
+// The three oscillators cannot share one pane honestly — Stochastic runs 0-100
+// while MACD and Momentum are in price units, so stacking them would need
+// rescaling that distorts the values you are reading. Instead, pick which one
+// the pane shows. To see two at once, add this indicator a second time and set
+// the copy to a different oscillator.
+// =============================================================================
+
+indicator("POEMS Template", overlay = false)
+
+osc = input.string("Stochastic", "Oscillator pane",
+     options = ["Stochastic", "MACD", "Momentum"])
+showEMA = input.bool(true, "Show EMAs on price")
+showBB  = input.bool(true, "Show Bollinger on price")
+
+// ---- Price-pane indicators (pushed up with force_overlay) -----------------
+ema1 = ta.ema(close, 8)
+ema2 = ta.ema(close, 21)
+ema3 = ta.ema(close, 100)
+
+basis = ta.sma(close, 20)
+dev   = 2.0 * ta.stdev(close, 20)
+upper = basis + dev
+lower = basis - dev
+
+plot(showEMA ? ema1 : na, "EMA 8",   color.new(#B8860B, 0), 1, force_overlay = true)
+plot(showEMA ? ema2 : na, "EMA 21",  color.new(#1E90FF, 0), 1, force_overlay = true)
+plot(showEMA ? ema3 : na, "EMA 100", color.new(#DAA520, 0), 1, force_overlay = true)
+
+pu = plot(showBB ? upper : na, "BB Upper", color.new(#000080, 0), 1, force_overlay = true)
+pl = plot(showBB ? lower : na, "BB Lower", color.new(#000080, 0), 1, force_overlay = true)
+fill(pu, pl, color.new(#4169E1, 93))
+plot(showBB ? basis : na, "BB Mid", color.new(#40E0D0, 0), 1, force_overlay = true)
+
+// ---- Oscillators ----------------------------------------------------------
+rawK = ta.stoch(close, high, low, 9)
+k    = ta.sma(rawK, 3)
+d    = ta.sma(k, 3)
+
+macdLine   = ta.ema(close, 9) - ta.ema(close, 18)
+signalLine = ta.ema(macdLine, 9)
+histLine   = macdLine - signalLine
+
+mtm = close - close[28]
+
+isStoch = osc == "Stochastic"
+isMacd  = osc == "MACD"
+isMtm   = osc == "Momentum"
+
+// Stochastic
+plot(isStoch ? k : na, "%K", color.new(#B8860B, 0), 1)
+plot(isStoch ? d : na, "%D", color.new(#1E90FF, 0), 1, style = plot.style_line)
+plot(isStoch ? 70 : na, "Sell zone", color.new(color.gray, 40), 1)
+plot(isStoch ? 30 : na, "Buy zone",  color.new(color.gray, 40), 1)
+
+// MACD
+plot(isMacd ? macdLine   : na, "MACD",   color.new(#1E90FF, 0), 1)
+plot(isMacd ? signalLine : na, "Signal", color.new(#006400, 0), 1)
+plot(isMacd ? histLine   : na, "Diff",
+     histLine >= 0 ? color.new(#00CC00, 20) : color.new(#CC0000, 20),
+     1, style = plot.style_columns)
+
+// Momentum
+plot(isMtm ? mtm : na, "MTM 28", color.new(#B8860B, 0), 1)
+
+// Zero line for MACD and Momentum
+plot(isStoch ? na : 0, "Zero", color.new(color.gray, 50), 1)

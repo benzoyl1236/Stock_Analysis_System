@@ -1,0 +1,109 @@
+//@version=5
+// =============================================================================
+// POEMS Template — full layout in ONE indicator
+//
+//   PRICE PANE   candles + EMA 8/21/100 + Bollinger 20/2
+//   LOWER PANE   OSC (top) / MACD (middle) / MTM (bottom), stacked
+//
+// TradingView gives one pane per script, and the free plan limits how many
+// scripts you can add. So rather than three separate panes, the lower pane is
+// split into three horizontal bands that mirror your POEMS layout.
+//
+// HOW THE BANDS WORK — read this so you trust what you are seeing.
+// Stochastic is naturally 0-100 and is drawn unchanged, just shifted up.
+// MACD and Momentum are in price units and would be invisible next to it, so
+// each is divided by its own recent peak and drawn as a proportion of its
+// band. SHAPE, crossings and zero-line behaviour are all exact. The absolute
+// numbers on the y-axis are not meaningful — read those off the data window
+// (the values panel), which shows true figures.
+//
+// Settings are transcribed from your POEMS dialogs and unchanged:
+//   EMA 8 / 21 / 100 (Close)      Bollinger SMA 20, 2 SD (Close)
+//   Stochastic K9 D3 MA3, 70/30   MACD 9 / 18 / 9 (Close)
+//   Momentum 28
+// =============================================================================
+
+indicator("POEMS Template Full", overlay = false)
+
+showEMA  = input.bool(true,  "EMA 8/21/100 on price")
+showBB   = input.bool(true,  "Bollinger on price")
+lookback = input.int(200, "Bars used to scale MACD/MTM bands", minval = 50)
+
+// ---------------- Price pane (pushed up with force_overlay) ----------------
+ema1 = ta.ema(close, 8)
+ema2 = ta.ema(close, 21)
+ema3 = ta.ema(close, 100)
+
+basis = ta.sma(close, 20)
+dev   = 2.0 * ta.stdev(close, 20)
+upper = basis + dev
+lower = basis - dev
+
+plot(showEMA ? ema1 : na, "EMA 8",   color.new(#B8860B, 0), 1, force_overlay = true)
+plot(showEMA ? ema2 : na, "EMA 21",  color.new(#1E90FF, 0), 1, force_overlay = true)
+plot(showEMA ? ema3 : na, "EMA 100", color.new(#DAA520, 0), 1, force_overlay = true)
+
+pu = plot(showBB ? upper : na, "BB Upper", color.new(#000080, 0), 1, force_overlay = true)
+pl = plot(showBB ? lower : na, "BB Lower", color.new(#000080, 0), 1, force_overlay = true)
+fill(pu, pl, color.new(#4169E1, 93))
+plot(showBB ? basis : na, "BB Mid", color.new(#40E0D0, 0), 1, force_overlay = true)
+
+// ---------------- Oscillators (true values) --------------------------------
+rawK = ta.stoch(close, high, low, 9)
+k    = ta.sma(rawK, 3)
+d    = ta.sma(k, 3)
+
+macdLine   = ta.ema(close, 9) - ta.ema(close, 18)
+signalLine = ta.ema(macdLine, 9)
+histLine   = macdLine - signalLine
+
+mtm = close - close[28]
+
+// ---------------- Band placement -------------------------------------------
+// OSC 200-300 (top) | MACD 100-200 (middle) | MTM 0-100 (bottom)
+scaleTo(float v, float centre, float halfHeight, float peak) =>
+    peak > 0 ? centre + (v / peak) * halfHeight : centre
+
+macdPeak = math.max(ta.highest(math.abs(macdLine), lookback),
+                    ta.highest(math.abs(signalLine), lookback))
+mtmPeak  = ta.highest(math.abs(mtm), lookback)
+
+kB    = k + 200
+dB    = d + 200
+macdB = scaleTo(macdLine,   150, 42, macdPeak)
+sigB  = scaleTo(signalLine, 150, 42, macdPeak)
+histB = scaleTo(histLine,   150, 42, macdPeak)
+mtmB  = scaleTo(mtm,         50, 42, mtmPeak)
+
+// --- OSC band ---
+plot(kB, "%K", color.new(#B8860B, 0), 1)
+plot(dB, "%D", color.new(#1E90FF, 0), 1)
+plot(270, "Sell 70", color.new(color.gray, 55), 1)
+plot(230, "Buy 30",  color.new(color.gray, 55), 1)
+
+// --- MACD band ---
+plot(macdB, "MACD",   color.new(#1E90FF, 0), 1)
+plot(sigB,  "Signal", color.new(#006400, 0), 1)
+plot(histB, "Diff",
+     histLine >= 0 ? color.new(#00CC00, 25) : color.new(#CC0000, 25),
+     1, style = plot.style_columns, histbase = 150)
+plot(150, "MACD zero", color.new(color.gray, 70), 1)
+
+// --- MTM band ---
+plot(mtmB, "MTM 28", color.new(#B8860B, 0), 1)
+plot(50, "MTM zero", color.new(color.gray, 70), 1)
+
+// --- Band separators ---
+plot(200, "", color.new(color.gray, 20), 1)
+plot(100, "", color.new(color.gray, 20), 1)
+
+// ---------------- Labels ---------------------------------------------------
+if barstate.islast
+    var label lo = na, var label lm = na, var label lt = na
+    label.delete(lo), label.delete(lm), label.delete(lt)
+    lo := label.new(bar_index + 3, 295, "OSC", style = label.style_none,
+         textcolor = color.new(color.gray, 20), size = size.tiny)
+    lm := label.new(bar_index + 3, 195, "MACD", style = label.style_none,
+         textcolor = color.new(color.gray, 20), size = size.tiny)
+    lt := label.new(bar_index + 3, 95, "MTM", style = label.style_none,
+         textcolor = color.new(color.gray, 20), size = size.tiny)
