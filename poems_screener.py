@@ -333,14 +333,39 @@ def win_rate(d, hold=5, max_signals=40):
 # ============================================================
 # Fetch and scan
 # ============================================================
-def fetch(ticker, interval="1d", period=HISTORY):
+# Yahoo caps intraday history. 1h is limited to 730 days; daily is unlimited.
+# 4h does not exist as a Yahoo interval and is built by resampling 1h bars.
+INTERVAL_SPEC = {
+    "1d": {"yf": "1d", "period": "2y", "resample": None, "min_bars": 150},
+    "1h": {"yf": "1h", "period": "730d", "resample": None, "min_bars": 200},
+    "4h": {"yf": "1h", "period": "730d", "resample": "4h", "min_bars": 200},
+}
+
+
+def _to_4h(df):
+    """Resample hourly bars to 4-hour. US sessions are 6.5h, so the last bar
+    of each day is a partial — that is unavoidable and normal for 4h US data."""
+    agg = {"Open": "first", "High": "max", "Low": "min",
+           "Close": "last", "Volume": "sum"}
+    cols = {k: v for k, v in agg.items() if k in df.columns}
+    out = df.resample("4h").agg(cols).dropna(subset=["Close"])
+    return out[out["Close"] > 0]
+
+
+def fetch(ticker, interval="1d", period=None):
+    spec = INTERVAL_SPEC.get(interval, INTERVAL_SPEC["1d"])
+    period = period or spec["period"]
     cached = load_cache(ticker, interval, period)
     if cached is not None:
         return ticker, cached
     try:
-        data = yf.Ticker(ticker).history(period=period, interval=interval,
+        data = yf.Ticker(ticker).history(period=period, interval=spec["yf"],
                                          auto_adjust=True)
-        if not data.empty and len(data) >= MIN_BARS:
+        if data is None or data.empty:
+            return ticker, None
+        if spec["resample"]:
+            data = _to_4h(data)
+        if len(data) >= spec["min_bars"]:
             save_cache(ticker, interval, period, data)
             return ticker, data
     except Exception:
@@ -448,7 +473,8 @@ def alert(buys, token, chat):
 def main():
     p = argparse.ArgumentParser(description="POEMS template screener")
     p.add_argument("--add-forex", action="store_true")
-    p.add_argument("--interval", default="1d", choices=["1d", "1h"])
+    p.add_argument("--interval", default="1d", choices=["1d", "4h", "1h"],
+                   help="bar size. Everything was designed and tested on 1d.")
     p.add_argument("--top", type=int, default=20)
     p.add_argument("--max-rsi", type=int, default=100)
     p.add_argument("--min-score", type=int, default=70)
@@ -471,6 +497,18 @@ def main():
               f"MTM {POEMS.momentum}")
         print(f"  ruleset fingerprint {FINGERPRINT} (shared with scan.py)")
     print("=" * 62)
+
+    if a.interval != "1d":
+        bars = {"4h": "about 2 sessions", "1h": "about 2 weeks"}[a.interval]
+        print()
+        print(f"  !! {a.interval} BARS — the periods below are unchanged, so they now")
+        print(f"     mean very different things. EMA 100 becomes {bars} of history,")
+        print(f"     Stochastic 9 becomes 9 {a.interval} bars. Expect far more signals")
+        print(f"     and far more noise. Nothing here was tested on intraday data,")
+        print(f"     and spreads cost the same on a 0.3% move as on a 3% one.")
+        if a.interval == "4h":
+            print(f"     4h is resampled from 1h; Yahoo has no native 4h interval.")
+        print()
 
     tickers = get_sp500()
     if a.add_forex:
