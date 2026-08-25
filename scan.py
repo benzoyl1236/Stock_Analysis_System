@@ -127,7 +127,8 @@ def _evaluate(ticker: str, raw: pd.DataFrame, names: dict,
 
 # --------------------------------------------------------------------------
 
-def run_scan(notify: bool = False, use_cache: bool = True) -> dict:
+def run_scan(notify: bool = False, use_cache: bool = True,
+             hits_only: bool = True) -> dict:
     """Full universe scan. Returns hits, near-misses and the report path."""
     names = _names()
     tickers = data.read_universe_file(UNIVERSE)
@@ -161,7 +162,15 @@ def run_scan(notify: bool = False, use_cache: bool = True) -> dict:
     print(f"Report: {path}")
 
     if notify and tg.configured():
-        tg.send(tg.format_summary(hits, near, len(universe), FINGERPRINT))
+        if hits_only:
+            # Only names clearing ALL eight gates. Near-misses are suppressed:
+            # a 7-of-8 name did not qualify, and listing it invites trading it.
+            if hits:
+                tg.send(tg.format_summary(hits, [], len(universe), FINGERPRINT))
+            else:
+                print("  no qualifying names — no alert sent")
+        else:
+            tg.send(tg.format_summary(hits, near, len(universe), FINGERPRINT))
         for h in hits[:6]:
             tg.send(tg.format_alert(h))
         if hits:
@@ -224,6 +233,8 @@ def main() -> None:
     ap.add_argument("--market", default="sgx", choices=["sgx", "us"],
                     help="market profile (default sgx)")
     ap.add_argument("--notify", action="store_true", help="push alerts to Telegram")
+    ap.add_argument("--include-near-miss", action="store_true",
+                    help="also send 7-of-8 names (default: qualifying only)")
     ap.add_argument("--backtest", action="store_true", help="rebuild base rates")
     ap.add_argument("--check", metavar="TICKER", help="evaluate one counter")
     ap.add_argument("--verify-universe", action="store_true")
@@ -249,7 +260,8 @@ def main() -> None:
         return
 
     data.clear_stale_cache()
-    run_scan(notify=a.notify, use_cache=not a.no_cache)
+    run_scan(notify=a.notify, use_cache=not a.no_cache,
+             hits_only=not a.include_near_miss)
 
 
 if __name__ == "__main__":

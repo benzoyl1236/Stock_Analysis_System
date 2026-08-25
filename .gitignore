@@ -1,0 +1,11 @@
+# Generated — never ship these in the zip
+output/
+cache/
+cache_us/
+universe_us.csv
+baserates*.json
+baseline_*.json
+simple_*.json
+squeeze_*.json
+secrets.json
+__pycache__/

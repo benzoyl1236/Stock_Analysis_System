@@ -1,0 +1,75 @@
+name: US signal scan
+
+# Runs twice a day at the times you asked for.
+# SGT is UTC+8 year round (Singapore has no daylight saving), so:
+#     8:30pm SGT = 12:30 UTC
+#    10:00pm SGT = 14:00 UTC
+#
+# A note on those times. Every indicator in the template reads Close, so a
+# scan is only meaningful on a COMPLETED daily bar.
+#   8:30pm SGT  -> always before the US open. Uses the last complete session.
+#   10:00pm SGT -> before the open in winter, but 30 minutes INTO the session
+#                  during US summer time.
+# data_us.drop_incomplete_bar() handles this: if the US session is still open
+# it discards today's partial bar and scans the last complete one instead.
+# The practical consequence is that in summer both runs see identical data and
+# the second is a duplicate. If you would rather have one genuinely post-close
+# scan, use 5:30am SGT (21:30 UTC) instead — that is after the 4pm ET bell.
+
+on:
+  schedule:
+    - cron: '30 12 * * 1-5'    # 8:30pm SGT, Mon-Fri
+    - cron: '0 14 * * 1-5'     # 10:00pm SGT, Mon-Fri
+  workflow_dispatch:            # lets you trigger a run by hand
+
+concurrency:
+  group: us-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # The price cache is the expensive part — several hundred MB and 20+
+      # minutes to rebuild. Restoring it makes a daily run take about a minute.
+      # The key rotates daily so each day fetches only what it needs; the
+      # restore-keys fall back to the most recent previous cache.
+      - name: Restore price cache
+        uses: actions/cache@v4
+        with:
+          path: cache_us
+          key: us-prices-${{ github.run_id }}
+          restore-keys: |
+            us-prices-
+
+      - name: Refresh ticker universe
+        run: python universe_us.py
+        continue-on-error: true   # a stale universe_us.csv is better than no scan
+
+      - name: Scan and alert
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scan.py --market us --notify
+
+      # Keeps the HTML report for 14 days so you can open it from the Actions
+      # tab even though nothing is deployed anywhere.
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signals-${{ github.run_number }}
+          path: output/
+          retention-days: 14

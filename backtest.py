@@ -53,6 +53,46 @@ class Trade:
     mfe_20: float          # best unrealised gain within 20 bars, %
     mae_20: float          # worst unrealised loss within 20 bars, %
     atr_pct: float
+    # --- signal-time features, for ranking. All readable at the signal bar. ---
+    stoch_k: float = 0.0          # how deep the oversold dip was
+    macd_hist: float = 0.0        # strength of MACD expansion
+    mtm: float = 0.0              # 28-bar momentum
+    rel_vol: float = 0.0          # volume vs 20-day average
+    bb_pos: float = 0.0           # position in the Bollinger channel
+    bb_squeeze: float = 0.0       # band width percentile (coiled or not)
+    dist_ema21: float = 0.0       # % above EMA21 (how extended)
+    dist_ema100: float = 0.0      # % above EMA100 (trend maturity)
+    turnover_avg: float = 0.0     # liquidity
+    trend_age: float = 0.0        # bars since EMA8 crossed above EMA21
+
+
+def _f(df, col, i) -> float:
+    try:
+        v = float(df[col].iloc[i])
+        return v if np.isfinite(v) else 0.0
+    except Exception:
+        return 0.0
+
+
+def _pct_above(df, col, i) -> float:
+    try:
+        c, m = float(df["Close"].iloc[i]), float(df[col].iloc[i])
+        return (c / m - 1.0) * 100.0 if m > 0 and np.isfinite(m) else 0.0
+    except Exception:
+        return 0.0
+
+
+def _trend_age(df, i, cap: int = 120) -> float:
+    """Bars since EMA8 last crossed above EMA21. Young trend or old one?"""
+    try:
+        f = df["ema_fast"].to_numpy(float)
+        m = df["ema_mid"].to_numpy(float)
+        for k in range(i, max(0, i - cap), -1):
+            if k >= 1 and f[k - 1] <= m[k - 1] and f[k] > m[k]:
+                return float(i - k)
+        return float(cap)
+    except Exception:
+        return 0.0
 
 
 def _forward(df: pd.DataFrame, sig_i: int) -> Trade | None:
@@ -81,6 +121,16 @@ def _forward(df: pd.DataFrame, sig_i: int) -> Trade | None:
         ret_5=ret(5), ret_10=ret(10), ret_20=ret(20),
         mfe_20=mfe, mae_20=mae,
         atr_pct=float(df["atr_pct"].iloc[sig_i]),
+        stoch_k=_f(df, "stoch_k", sig_i),
+        macd_hist=_f(df, "macd_hist", sig_i),
+        mtm=_f(df, "mtm", sig_i),
+        rel_vol=_f(df, "rel_vol", sig_i),
+        bb_pos=_f(df, "bb_pos", sig_i),
+        bb_squeeze=_f(df, "bb_squeeze_pct", sig_i),
+        dist_ema21=_pct_above(df, "ema_mid", sig_i),
+        dist_ema100=_pct_above(df, "ema_slow", sig_i),
+        turnover_avg=_f(df, "turnover_avg", sig_i),
+        trend_age=_trend_age(df, sig_i),
     )
 
 

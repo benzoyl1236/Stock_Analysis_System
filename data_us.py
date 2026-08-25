@@ -31,14 +31,44 @@ CACHE_DIR.mkdir(exist_ok=True)
 _OHLCV = ["Open", "High", "Low", "Close", "Volume"]
 
 
-def _store(day: str | None = None) -> Path:
+def _store(day: str | None = None, tag: str = "") -> Path:
     day = day or date.today().isoformat()
-    return CACHE_DIR / f"us_{day}.parquet"
+    return CACHE_DIR / f"us{tag}_{day}.parquet"
 
 
-def _progress(day: str | None = None) -> Path:
+def _progress(day: str | None = None, tag: str = "") -> Path:
     day = day or date.today().isoformat()
-    return CACHE_DIR / f"us_{day}_done.txt"
+    return CACHE_DIR / f"us{tag}_{day}_done.txt"
+
+
+def drop_incomplete_bar(frames: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Remove today's bar if the US session has not closed yet.
+
+    Every indicator in the template reads Close. A bar formed 30 minutes into
+    the session is provisional: EMAs, %K, MACD and the Bollinger position will
+    all move before 4pm ET. Scanning it produces gates that may be false by
+    the bell. This drops that bar so a pre-close run uses the last COMPLETE
+    session instead of a half-formed one.
+    """
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    # US Eastern without a tz library: EDT (UTC-4) Mar-Nov, EST (UTC-5) otherwise.
+    offset = -4 if 3 <= now_utc.month <= 11 else -5
+    et = now_utc + timedelta(hours=offset)
+    closed = (et.hour > 16) or (et.hour == 16 and et.minute >= 0)
+    if closed or et.weekday() >= 5:
+        return frames
+    today = et.date()
+    out, trimmed = {}, 0
+    for t, d in frames.items():
+        if len(d) and pd.Timestamp(d.index[-1]).date() == today:
+            d = d.iloc[:-1]
+            trimmed += 1
+        out[t] = d
+    if trimmed:
+        print(f"  dropped today's incomplete bar on {trimmed:,} tickers "
+              f"(US session still open, {et:%H:%M} ET)")
+    return out
 
 
 def _tidy(raw: pd.DataFrame, tickers: list[str]) -> dict[str, pd.DataFrame]:
@@ -95,11 +125,17 @@ def _unflatten(long: pd.DataFrame) -> dict[str, pd.DataFrame]:
 
 def load_bulk(tickers: list[str], years: int = 6, batch_size: int = 150,
               min_bars: int = 150, use_cache: bool = True,
-              pause: float = 1.0, max_retries: int = 3) -> dict[str, pd.DataFrame]:
-    """Download history for a large ticker list. Resumable and cached."""
+              pause: float = 1.0, max_retries: int = 3,
+              start: str | None = None, end: str | None = None,
+              tag: str = "") -> dict[str, pd.DataFrame]:
+    """Download history for a large ticker list. Resumable and cached.
+
+    Pass start/end (YYYY-MM-DD) for an explicit window instead of the trailing
+    `years`. Use `tag` to keep that cache separate from the main one.
+    """
     import yfinance as yf
 
-    store, prog = _store(), _progress()
+    store, prog = _store(tag=tag), _progress(tag=tag)
 
     # ---- reuse today's cache if complete ----
     done: set[str] = set()
@@ -125,10 +161,12 @@ def load_bulk(tickers: list[str], years: int = 6, batch_size: int = 150,
             got = {}
             for attempt in range(1, max_retries + 1):
                 try:
+                    kw = ({"start": start, "end": end} if start
+                          else {"period": f"{years}y"})
                     raw = yf.download(
-                        " ".join(batch), period=f"{years}y", interval="1d",
+                        " ".join(batch), interval="1d",
                         auto_adjust=True, progress=False, threads=True,
-                        group_by="column",
+                        group_by="column", **kw,
                     )
                     got = _tidy(raw, batch)
                     if got:
@@ -156,6 +194,7 @@ def load_bulk(tickers: list[str], years: int = 6, batch_size: int = 150,
                   f"{len(frames):,} tickers held")
             time.sleep(pause)
 
+    frames = drop_incomplete_bar(frames)
     usable = {t: d for t, d in frames.items() if len(d) >= min_bars}
     print(f"  {len(usable):,} of {len(frames):,} have >= {min_bars} bars")
     return usable
