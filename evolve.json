@@ -1,0 +1,13 @@
+{
+  "real": {
+    "survivors": 40,
+    "started": 40,
+    "births": 0,
+    "deaths": 0,
+    "total_capital": 323844.4456798025,
+    "best": 8096.111141995062,
+    "ledger_size": 40
+  },
+  "null_median": 504447.1406838642,
+  "p": 1.0
+}
