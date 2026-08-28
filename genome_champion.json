@@ -1,0 +1,23 @@
+{
+  "champion": {
+    "bb_period": "20",
+    "bb_sd": "2.0",
+    "ema_fast": "5",
+    "ema_mid": "21",
+    "ema_slow": "100",
+    "stoch_k": "9",
+    "macd_set": "(6, 13, 5)",
+    "mtm": "56",
+    "pullback_lookback": "10",
+    "stoch_ceiling": "75.0",
+    "confirm_window": "5",
+    "min_rel_vol": "1.2",
+    "headroom": "0.95",
+    "mask": "121"
+  },
+  "train": 44286.505663990545,
+  "holdout": 394421.4902229067,
+  "seed_train": 59407.1793862786,
+  "seed_holdout": 73698.31000545442,
+  "shuffled": 63773.10935474538
+}

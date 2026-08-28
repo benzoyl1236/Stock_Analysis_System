@@ -40,7 +40,13 @@ HERE = Path(__file__).parent
 def _load_frames(market: str) -> dict[str, pd.DataFrame]:
     if market == "us":
         import data_us
-        files = sorted(data_us.CACHE_DIR.glob("us_*.parquet"))
+        # Only plain us_YYYY-MM-DD.parquet. A tagged cache like
+        # us_holdout_2026-08-27.parquet also matches "us_*" and would silently
+        # shadow the main cache — which once made a two-period test read the
+        # same decade twice and report identical p-values.
+        import re as _re
+        files = sorted(f for f in data_us.CACHE_DIR.glob("us_*.parquet")
+                       if _re.fullmatch(r"us_\d{4}-\d{2}-\d{2}\.parquet", f.name))
         if not files:
             raise SystemExit("No US cache found. Run: python scan.py --market us --backtest")
         print(f"  reading {files[-1].name}")

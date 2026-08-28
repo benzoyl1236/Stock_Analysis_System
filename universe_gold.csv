@@ -1,0 +1,28 @@
+ticker,name,exchange
+GLD,SPDR Gold Shares,ETF
+IAU,iShares Gold Trust,ETF
+SGOL,abrdn Physical Gold,ETF
+BAR,GraniteShares Gold,ETF
+AAAU,Goldman Sachs Physical Gold,ETF
+OUNZ,VanEck Merk Gold,ETF
+GC=F,Gold futures,FUT
+GDX,VanEck Gold Miners,ETF
+GDXJ,VanEck Junior Gold Miners,ETF
+RING,iShares MSCI Gold Miners,ETF
+GOAU,US Global GO GOLD,ETF
+SGDM,Sprott Gold Miners,ETF
+NEM,Newmont,STOCK
+GOLD,Barrick Gold,STOCK
+AEM,Agnico Eagle Mines,STOCK
+KGC,Kinross Gold,STOCK
+AU,AngloGold Ashanti,STOCK
+GFI,Gold Fields,STOCK
+HMY,Harmony Gold,STOCK
+RGLD,Royal Gold,STOCK
+FNV,Franco-Nevada,STOCK
+WPM,Wheaton Precious Metals,STOCK
+PAAS,Pan American Silver,STOCK
+SLV,iShares Silver Trust,ETF
+SIL,Global X Silver Miners,ETF
+PPLT,abrdn Platinum,ETF
+PALL,abrdn Palladium,ETF

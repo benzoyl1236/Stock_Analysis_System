@@ -1,0 +1,5 @@
+ticker,name,exchange
+XAUUSD=X,Gold spot USD,FX
+GC=F,Gold futures continuous,FUT
+GLD,SPDR Gold Shares,ETF
+XAGUSD=X,Silver spot USD,FX
